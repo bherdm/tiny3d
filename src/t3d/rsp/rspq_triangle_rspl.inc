@@ -342,12 +342,15 @@ RDPQ_Triangle_Send_Async:
   sb $t3, 0($t4)                                     ## L:642  |     11 | @Barrier("cb-stash") store(prim_size:u8, color_dmem, 0x00); ## Barrier: 0x2
   lw $t1, %lo(RDPQ_DYNAMIC_BUFFERS + 0)              ## L:632  |     12 | u32<$t1> otherBuff = load(RDPQ_DYNAMIC_BUFFERS, 0);
   sw $a0, %lo(0 + RDPQ_DYNAMIC_BUFFERS)($zero)       ## L:633  |     13 | store(rdramCur, RDPQ_DYNAMIC_BUFFERS, 0);
-  lui $at, 0x01                                      ## L:644  |     14 | rdramSentinel = rdramCur + 65536;
+  subu $t2, $a0, $t1                                 ## L:647  |     14 | s32<$t2> bufDist = rdramCur - otherBuff;
   sw $t1, %lo(4 + RDPQ_DYNAMIC_BUFFERS)($zero)       ## L:634  |     15 | store(otherBuff, RDPQ_DYNAMIC_BUFFERS, 4);
   or $a3, $zero, $ra                                 ## L:630  |     16 | u32<$a3> savedRA = RA;
-  or $a1, $zero, $a0                                 ## L:645  |     17 | u32<$a1> rdramCurCopy = rdramCur;
-  jal RSPQCmd_RdpSetBuffer                           ## L:646  |     18 | RSPQCmd_RdpSetBuffer(rdramCur, rdramCurCopy, rdramSentinel); ## Args: $a0, $a1, $a2
-  addu $a2, $a0, $at                                 ## L:644  |    *20 | rdramSentinel = rdramCur + 65536;
+  bgez $t2, LABEL_RDPQ_Triangle_Send_Async_Sentinel  ## L:649  |     17 | if(bufDist < 0) {
+  addu $a2, $a0, $t2                                 ## L:648  |    *19 | rdramSentinel = rdramCur + bufDist;
+  or $a2, $zero, $t1                                 ## L:650  |     20 | rdramSentinel = otherBuff;
+  LABEL_RDPQ_Triangle_Send_Async_Sentinel:
+  jal RSPQCmd_RdpSetBuffer                           ## L:655  |     21 | RSPQCmd_RdpSetBuffer(rdramCur, rdramCurCopy, rdramSentinel); ## Args: $a0, $a1, $a2
+  or $a1, $zero, $a0                                 ## L:654  |    *23 | u32<$a1> rdramCurCopy = rdramCur;
   or $ra, $zero, $a3                                 ## L:654  |     21 | RA = savedRA;
   lbu $t3, 0($t4)                                    ## L:652  |     22 | @Barrier("cb-stash") prim_size:u8 = load(color_dmem, 0x00); ## Barrier: 0x2
   mtc0 $a0, COP0_DMA_RAMADDR                         ## L:651  |     23 | @Barrier("tri-out") set_dma_addr_rdram(rdramCur); ## Barrier: 0x1

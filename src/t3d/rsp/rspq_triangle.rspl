@@ -633,7 +633,6 @@ function RDPQ_Triangle_Send_Async(u32<$a0> vtx1, u32<$a1> vtx2, u32<$a2> vtx3, u
     u32<$t1> otherBuff = load(RDPQ_DYNAMIC_BUFFERS, 0);
     store(rdramCur, RDPQ_DYNAMIC_BUFFERS, 0);
     store(otherBuff, RDPQ_DYNAMIC_BUFFERS, 4);
-    undef otherBuff;
 
     // We are going to call RSPQCmd_RdpSetBuffer. Since it's going to destroy
     // t0-t3, we need to save prim_size (t3). Notice that we rely on the fact
@@ -642,7 +641,16 @@ function RDPQ_Triangle_Send_Async(u32<$a0> vtx1, u32<$a1> vtx2, u32<$a2> vtx3, u
     // written later, after this branch.
     @Barrier("cb-stash") store(prim_size:u8, color_dmem, 0x00);
 
-    rdramSentinel = rdramCur + RDPQ_DYNAMIC_BUFFER_SIZE;
+    // The two buffers are one allocation, so the distance between them is
+    // their size: the upper one ends that far past its start, the lower one
+    // where the upper one starts.
+    s32<$t2> bufDist = rdramCur - otherBuff;
+    rdramSentinel = rdramCur + bufDist;
+    if(bufDist < 0) {
+      rdramSentinel = otherBuff;
+    }
+    undef bufDist;
+    undef otherBuff;
     u32<$a1> rdramCurCopy = rdramCur;
     RSPQCmd_RdpSetBuffer(rdramCur, rdramCurCopy, rdramSentinel);
     undef rdramCurCopy;
